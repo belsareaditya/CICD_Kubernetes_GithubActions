@@ -29,7 +29,7 @@ jobs:
 
       # Step 4: Build and push Docker image with lowercase tags
       - name: Build and push Docker image
-        shell: pwsh
+        shell: powershell
         env:
           IMAGE_NAME: ghcr.io/${{ github.repository }}
           TAG_SHA: ${{ github.sha }}
