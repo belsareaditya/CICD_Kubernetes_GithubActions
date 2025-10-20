@@ -27,39 +27,48 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
-      # Step 4: Build and push Docker image
+      # Step 4: Build and push Docker image with lowercase tags
       - name: Build and push Docker image
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:${{ github.sha }}
+        shell: bash
+        env:
+          IMAGE_NAME: ghcr.io/${{ github.repository }}
+          TAG_SHA: ${{ github.sha }}
+        run: |
+          IMAGE_NAME_LOWER=$(echo "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]')
+          docker buildx build \
+            --push \
+            --tag "$IMAGE_NAME_LOWER:latest" \
+            --tag "$IMAGE_NAME_LOWER:$TAG_SHA" \
+            .
 
       # Step 5: Update GitOps repository
       - name: Update GitOps repository
         shell: bash
         env:
           GIT_TOKEN: ${{ secrets.GITOPS_PAT }}
+          IMAGE_NAME_LOWER: ghcr.io/${{ github.repository }}
+          TAG_SHA: ${{ github.sha }}
         run: |
-          # Clone repository with token
+          # Lowercase image name
+          IMAGE_NAME_LOWER=$(echo "$IMAGE_NAME_LOWER" | tr '[:upper:]' '[:lower:]')
+
+          # Clone GitOps repo
           rm -rf gitops
           git clone https://${GIT_TOKEN}@github.com/belsareaditya/grade-api-gitops.git gitops
           cd gitops
 
-          # Update deployment.yaml image tag
+          # Update deployment.yaml
           if [[ "$OSTYPE" == "darwin"* ]]; then
-            sed -i '' "s|image: ghcr.io/${{ github.repository }}:.*|image: ghcr.io/${{ github.repository }}:${{ github.sha }}|g" deployment.yaml
+            sed -i '' "s|image: $IMAGE_NAME_LOWER:.*|image: $IMAGE_NAME_LOWER:$TAG_SHA|g" deployment.yaml
           else
-            sed -i "s|image: ghcr.io/${{ github.repository }}:.*|image: ghcr.io/${{ github.repository }}:${{ github.sha }}|g" deployment.yaml
+            sed -i "s|image: $IMAGE_NAME_LOWER:.*|image: $IMAGE_NAME_LOWER:$TAG_SHA|g" deployment.yaml
           fi
 
           # Commit only if changes exist
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
           git add deployment.yaml
-          git diff --cached --quiet || git commit -m "Update image to ${{ github.sha }}"
+          git diff --cached --quiet || git commit -m "Update image to $TAG_SHA"
 
           # Push changes
           git push https://${GIT_TOKEN}@github.com/belsareaditya/grade-api-gitops.git main
