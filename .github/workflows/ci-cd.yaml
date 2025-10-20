@@ -35,21 +35,24 @@ jobs:
           TAG_SHA: ${{ github.sha }}
         run: |
           $IMAGE_NAME_LOWER = $env:IMAGE_NAME.ToLower()
+          $TAG_SHA = $env:TAG_SHA
+
           docker buildx build `
             --push `
-            --tag "$IMAGE_NAME_LOWER:latest" `
-            --tag "$IMAGE_NAME_LOWER:$env:TAG_SHA" `
+            --tag "${IMAGE_NAME_LOWER}:latest" `
+            --tag "${IMAGE_NAME_LOWER}:${TAG_SHA}" `
             .
 
       # Step 5: Update GitOps repository
       - name: Update GitOps repository
-        shell: pwsh
+        shell: powershell
         env:
           GIT_TOKEN: ${{ secrets.GITOPS_PAT }}
           IMAGE_NAME: ghcr.io/${{ github.repository }}
           TAG_SHA: ${{ github.sha }}
         run: |
           $IMAGE_NAME_LOWER = $env:IMAGE_NAME.ToLower()
+          $TAG_SHA = $env:TAG_SHA
 
           # Remove existing gitops folder
           Remove-Item -Recurse -Force gitops -ErrorAction SilentlyContinue
@@ -59,7 +62,7 @@ jobs:
           Set-Location gitops
 
           # Update deployment.yaml image tag
-          (Get-Content deployment.yaml) -replace "image: $IMAGE_NAME_LOWER:.*", "image: $IMAGE_NAME_LOWER:$env:TAG_SHA" | Set-Content deployment.yaml
+          (Get-Content deployment.yaml) -replace "image: $IMAGE_NAME_LOWER:.*", "image: $IMAGE_NAME_LOWER:$TAG_SHA" | Set-Content deployment.yaml
 
           # Configure Git
           git config --global user.name "GitHub Actions"
@@ -68,6 +71,6 @@ jobs:
           # Commit only if there are changes
           git add deployment.yaml
           if (-not (git diff --cached --quiet)) {
-              git commit -m "Update image to $env:TAG_SHA"
+              git commit -m "Update image to $TAG_SHA"
               git push https://${env:GIT_TOKEN}@github.com/belsareaditya/grade-api-gitops.git main
           }
